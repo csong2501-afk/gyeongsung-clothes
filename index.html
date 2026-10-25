@@ -294,12 +294,10 @@ footer{padding-block:28px 60px;color:var(--muted);font-size:15px;border-top:1px 
         <div class="f full"><label for="fMemo">남기실 말씀</label><textarea id="fMemo" name="memo" maxlength="300" placeholder="사진은 당근 채팅으로 보내 주세요"></textarea></div>
         <label class="check full"><input type="checkbox" name="agree" id="fAgree"> <span>수거 불가 품목은 분리해서 내놓았습니다. 함께 배출된 불가 품목은 수거하지 않는 것에 동의합니다.</span></label>
         <div class="errs" id="errs" role="alert" hidden></div>
-        <div class="full cta"><button class="btn btn-primary" type="submit" id="submitBtn">신청하기</button><span class="hint">신청하면 아래에 신청 내용이 나옵니다. 당근 채팅으로 보내 주세요.</span></div>
+        <div class="full cta"><button class="btn btn-primary" type="submit" id="submitBtn">신청하기</button><span class="hint">신청하면 아래에 완료 안내가 나옵니다. 당근 채팅으로 알려 주세요.</span></div>
         <div class="result" id="result" hidden>
-          <h3>신청 내용을 당근 채팅으로 보내 주세요</h3>
-          <pre id="resultText"></pre>
-          <div class="cta"><button class="btn btn-primary" type="button" id="copyBtn">신청 내용 복사하기</button><span class="hint" id="copyMsg"></span></div>
-          <p class="hint">복사한 내용을 당근 채팅에 붙여넣고 보내 주세요. 물품 사진과 위치도 함께 보내 주시면 확인이 빨라요.</p>
+          <h3>접수 신청이 완료되었습니다</h3>
+          <p>당근 채팅으로 수거신청하였음을 알려주세요.</p>
         </div>
       </form>
     </div>
@@ -491,32 +489,8 @@ $("resvForm").addEventListener("submit", (ev) => {
   if (SHEET_URL) {
     fetch(SHEET_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ ...d, message: lastMessage }) }).catch(() => {});
   }
-  $("resultText").textContent = lastMessage;
-  $("copyMsg").textContent = "";
   $("result").hidden = false;
   $("result").scrollIntoView({ behavior: "smooth", block: "center" });
-});
-
-/* 클립보드 API가 막힌 화면(일부 앱 안의 미리보기 등)에서는 선택 후 복사 명령을 씁니다 */
-function legacyCopy(text) {
-  const ta = el("textarea", { readonly: "", "aria-hidden": "true" });
-  ta.value = text;
-  ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;";
-  document.body.append(ta);
-  ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
-  let ok = false;
-  try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-  ta.remove();
-  return ok;
-}
-$("copyBtn").addEventListener("click", async () => {
-  let ok = false;
-  try { await navigator.clipboard.writeText(lastMessage); ok = true; } catch (e) { ok = legacyCopy(lastMessage); }
-  if (ok) { $("copyMsg").textContent = "복사되었습니다. 당근 채팅에 붙여넣어 주세요."; return; }
-  const r = document.createRange();
-  r.selectNodeContents($("resultText"));
-  const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-  $("copyMsg").textContent = "복사가 막혀 있어요. 선택된 내용을 길게 눌러 복사해 주세요.";
 });
 
 $("parkNote").textContent = "주차 등록을 해 주세요. 차량번호 82구 1050을 등록해 주시면 됩니다.";
