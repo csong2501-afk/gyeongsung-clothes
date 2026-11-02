@@ -189,7 +189,7 @@ footer{padding-block:28px 60px;color:var(--muted);font-size:15px;border-top:1px 
     <div>
       <p class="eyebrow">강남구 · 서초구 · 송파구 전 지역 방문 수거</p>
       <h1>버리기 아까운 헌옷,<br><em>경성자원이 직접</em><br>사러 갑니다</h1>
-      <p class="lead">헌옷부터 냄비, 컴퓨터, 고철, 책까지. 20kg이 넘으면 무게만큼 매입해 드리고, 20kg이 안 돼도 무료로 가져가요.</p>
+      <p class="lead">헌옷, 냄비, 컴퓨터는 매입해 드리고, 고철과 책은 무료로 가져가요. 헌옷은 20kg이 넘으면 무게만큼 매입하고, 20kg이 안 돼도 무료로 가져가요. 기타 품목은 별도 문의해 주세요.</p>
       <div class="facts"><span>대면 수거</span><span>비대면 수거</span><span>20kg 이상 매입</span></div>
     </div>
     <div class="ticket" aria-label="매입 단가 요약">
@@ -296,8 +296,8 @@ footer{padding-block:28px 60px;color:var(--muted);font-size:15px;border-top:1px 
         <div class="errs" id="errs" role="alert" hidden></div>
         <div class="full cta"><button class="btn btn-primary" type="submit" id="submitBtn">신청하기</button><span class="hint">신청하면 아래에 완료 안내가 나옵니다. 당근 채팅으로 알려 주세요.</span></div>
         <div class="result" id="result" hidden>
-          <h3>접수 신청이 완료되었습니다</h3>
-          <p>당근 채팅으로 수거신청하였음을 알려주세요.</p>
+          <h3 id="resTitle"></h3>
+          <p id="resDesc"></p>
         </div>
       </form>
     </div>
@@ -314,9 +314,10 @@ footer{padding-block:28px 60px;color:var(--muted);font-size:15px;border-top:1px 
 /* 사업자등록번호는 여기 한 줄만 고치면 됩니다. 비워 두면 표시하지 않습니다. */
 const BIZ_NO = "562-06-03749";
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
-const PRICES = [
+let PRICES = [
   { name: "헌옷", price: 400 }, { name: "냄비", price: 300 }, { name: "컴퓨터", price: 500 },
-  { name: "고철", price: 50 }, { name: "책", price: 50 }
+  { name: "고철", price: 0, free: true }, { name: "책", price: 0, free: true }
+
 ];
 const CLOTH_TIERS = [
   { label: "1~19kg", min: 0, max: 19, buy: false },
@@ -346,8 +347,8 @@ function clothEstimate(kg) {
 }
 
 function renderStatic() {
-  $("ticketRows").replaceChildren(...PRICES.map((p) => el("div", { class: "row" }, [el("span", {}, p.name), el("span", {}, won(p.price) + "/kg")])));
-  $("rateBody").replaceChildren(...PRICES.map((p) => el("tr", {}, [el("td", { class: "item" }, p.name), el("td", { class: "n" }, [String(p.price), el("small", {}, "원/kg")])])));
+  $("ticketRows").replaceChildren(...PRICES.map((p) => el("div", { class: "row" }, [el("span", {}, p.name), el("span", {}, p.free ? "무료수거" : won(p.price) + "/kg")])));
+  $("rateBody").replaceChildren(...PRICES.map((p) => el("tr", {}, [el("td", { class: "item" }, p.name), el("td", { class: "n" }, p.free ? ["무료수거"] : [String(p.price), el("small", {}, "원/kg")])])));
   $("tierList").replaceChildren(
     el("li", { "data-key": "free" }, [el("span", {}, "1~19kg"), el("span", {}, "무료수거")]),
     el("li", { "data-key": "buy" }, [el("span", {}, "20kg 이상"), el("span", {}, "kg당 " + won(clothRate()))])
@@ -475,7 +476,23 @@ function buildMessage(d) {
 }
 
 let lastMessage = "";
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbyLDc_Sqv_ktfNpzPgmRx7FaK6YnrEIeobk4b-QpFcQ4C3GV6iXt7vBBOKmCUOY4rMX/exec"; /* 구글 앱스크립트 웹앱 주소를 여기에 넣습니다 */
+const SHEET_URL = "https://script.google.com/macros/s/AKfycby8rwKX913hX_2sHCtAijr8X0MFVt_MaUDUAjMjxW1SveDZCWJPGlDr6-00KY2kBB8z/exec";
+
+/* 시트 '설정' 탭의 단가를 읽어 옵니다. 실패하면 위의 기본 단가를 그대로 씁니다 */
+async function loadPrices() {
+  if (!SHEET_URL) return;
+  try {
+    const res = await fetch(SHEET_URL);
+    const json = await res.json();
+    if (Array.isArray(json.prices) && json.prices.length) {
+      PRICES = json.prices;
+      renderStatic();
+      paintSlider();
+    }
+  } catch (e) {
+    /* 읽기 실패 시 기본 단가 유지 */
+  }
+} /* 구글 앱스크립트 웹앱 주소를 여기에 넣습니다 */
 $("resvForm").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const d = readForm();
@@ -485,13 +502,37 @@ $("resvForm").addEventListener("submit", (ev) => {
   box.hidden = errs.length === 0;
   if (errs.length) { box.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
   lastMessage = buildMessage(d);
-  /* 구글 시트 장부로 보내기 (SHEET_URL이 비어 있으면 아무것도 보내지 않습니다) */
-  if (SHEET_URL) {
-    fetch(SHEET_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ ...d, message: lastMessage }) }).catch(() => {});
-  }
+  showResult("loading");
+  sendToSheet(d, lastMessage).then(showResult);
+});
+
+const RESULT_TEXT = {
+  loading: ["접수 중입니다", "잠시만 기다려 주세요."],
+  created: ["접수 신청이 완료되었습니다", "당근 채팅으로 수거신청하였음을 알려주세요."],
+  duplicate: ["이미 신청이 완료되었습니다", "같은 연락처로 접수된 신청이 있습니다. 상세주소를 바꾸시려면 상세주소를 고쳐서 다시 신청해 주세요."],
+  updated: ["상세주소 수정이 완료되었습니다", "변경된 주소로 저장되었습니다. 당근 채팅으로 수정하셨음을 알려 주세요."],
+  error: ["접수 확인에 실패했습니다", "잠시 후 다시 신청해 주시거나 당근 채팅으로 알려 주세요."]
+};
+
+function showResult(status) {
+  const [t, p] = RESULT_TEXT[status] || RESULT_TEXT.error;
+  $("resTitle").textContent = t;
+  $("resDesc").textContent = p;
   $("result").hidden = false;
   $("result").scrollIntoView({ behavior: "smooth", block: "center" });
-});
+}
+
+/* 구글 시트에 보내고 결과(created / duplicate / updated)를 받습니다. SHEET_URL이 비어 있으면 저장 없이 완료로 처리합니다 */
+async function sendToSheet(d, message) {
+  if (!SHEET_URL) return "created";
+  try {
+    const res = await fetch(SHEET_URL, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({ ...d, message }) });
+    const json = await res.json();
+    return json.status || "error";
+  } catch (e) {
+    return "error";
+  }
+}
 
 $("parkNote").textContent = "주차 등록을 해 주세요. 차량번호 82구 1050을 등록해 주시면 됩니다.";
 $("resvForm").addEventListener("change", (ev) => {
@@ -501,6 +542,7 @@ $("resvForm").addEventListener("change", (ev) => {
 $("kgSlider").addEventListener("input", paintSlider);
 
 renderStatic();
+loadPrices();
 buildDates();
 buildCloth();
 paintSlider();
